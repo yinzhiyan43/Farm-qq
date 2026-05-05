@@ -1,6 +1,8 @@
 import { _decorator, Component, TiledMap, TiledLayer, SpriteAtlas, Vec2, Node, Vec3, UITransform, UIOpacity, TiledObjectGroup, AudioClip, SpriteFrame, } from 'cc';
-import { CropNode, CropIdRange } from './Crop';
+import { CropNode, CropIdRange, CropData } from './Crop';
 import { Common, common } from './Common';
+import { CurrencySystem } from './CurrencySystem';
+import { eventBus, GameEvent } from './EventBus';
 
 const { ccclass, property } = _decorator;
 
@@ -61,6 +63,95 @@ export class Soil extends Component {
 
     // 土地上种植的作物
     private crops: CropNode[] = [];
+
+    // ==================== 存档相关 ====================
+
+    /**
+     * 获取所有作物的存档数据
+     */
+    public getCropsSaveData(): any[] {
+        const data: any[] = [];
+        for (const crop of this.crops) {
+            if (crop.crop) {
+                data.push({
+                    cropId: crop.crop.CropId,
+                    tileX: crop.TilePosX,
+                    tileY: crop.TilePosY,
+                    plantTime: crop.PlantTime,
+                    currentLifecycleIndex: crop.CurrentLifecycleIndex,
+                    currentLifecycleStartTime: crop.CurrentLifecycleStartTime,
+                    currentLifecycleGrowTime: crop.CurrentLifecycleGrowTime,
+                    harvestTimes: crop.HarvestTimes,
+                });
+            }
+        }
+        return data;
+    }
+
+    /**
+     * 获取扩建牌位置存档数据
+     */
+    public getExtendBrandSaveData(): { tileX: number; tileY: number } {
+        return {
+            tileX: this.ExtendBrandTileX,
+            tileY: this.ExtendBrandTileY,
+        };
+    }
+
+    /**
+     * 从存档恢复扩建牌位置
+     */
+    public restoreExtendBrandFromSave(data: { tileX: number; tileY: number }): void {
+        if (data) {
+            this.ExtendBrandTileX = data.tileX || 0;
+            this.ExtendBrandTileY = data.tileY || YCountOfCrops;
+            this.setExtendBrandPosition();
+            console.log(`[Soil] 扩建牌位置恢复: (${this.ExtendBrandTileX}, ${this.ExtendBrandTileY})`);
+        }
+    }
+
+    /**
+     * 从存档数据恢复作物
+     */
+    public restoreCropsFromSave(cropsData: any[]): void {
+        if (!cropsData || cropsData.length === 0) return;
+
+        // 清除现有作物
+        for (const crop of this.crops) {
+            crop.destroy();
+        }
+        this.crops = [];
+
+        // 从存档恢复
+        for (const data of cropsData) {
+            const cropNode = new CropNode(this.cropAtlas, data.cropId);
+            if (!cropNode.crop) continue;
+
+            cropNode.TilePosX = data.tileX;
+            cropNode.TilePosY = data.tileY;
+            cropNode.PlantTime = data.plantTime;
+            cropNode.CurrentLifecycleIndex = data.currentLifecycleIndex;
+            cropNode.CurrentLifecycleStartTime = data.currentLifecycleStartTime;
+            cropNode.CurrentLifecycleGrowTime = data.currentLifecycleGrowTime || 0;
+            cropNode.HarvestTimes = data.harvestTimes || 0;
+
+            // 设置位置
+            const cropUITransform = cropNode.getComponent(UITransform);
+            cropUITransform.anchorX = 0.5;
+            cropUITransform.anchorY = 0;
+
+            this.node.addChild(cropNode);
+            this.crops.push(cropNode);
+
+            const tilePos = this.soilLayer.getPositionAt(data.tileX, data.tileY);
+            cropNode.setPosition(tilePos.x - this.OffsetX, tilePos.y - this.OffsetY);
+
+            // 更新精灵到对应生长阶段
+            cropNode.updateSprite();
+        }
+
+        console.log(`[Soil] 从存档恢复 ${cropsData.length} 个作物`);
+    }
 
     onLoad() {
         //////////////////////////////////
@@ -142,11 +233,38 @@ export class Soil extends Component {
     }
 
     // 在行列处添加植物
-    addCrop(x: number, y: number): void {
+    addCrop(x: number, y: number, cropId?: number): boolean {
+        // 如果指定了作物ID，检查是否有足够金币购买种子
+        if (cropId !== undefined) {
+            const currencySystem = CurrencySystem.getInstance();
+            if (!currencySystem) {
+                console.warn('[Soil] 货币系统未初始化');
+                return false;
+            }
+            
+            // 查找作物种子价格
+            const cropData = CropData.AllCrops.find(c => c.CropId === cropId);
+            const seedPrice = cropData ? cropData.SeedPrice : 10;
+            
+            if (!currencySystem.canAfford(seedPrice)) {
+                console.warn(`[Soil] 金币不足，无法种植 ${cropData ? cropData.CropName : '未知作物'}`);
+                return false;
+            }
+            
+            // 扣除种子费用
+            if (!currencySystem.spendGold(seedPrice)) {
+                console.warn('[Soil] 扣除金币失败');
+                return false;
+            }
+            
+            console.log(`[Soil] 种植作物花费 ${seedPrice} 金币`);
+        }
+        
         // 创建一个新的精灵节点
-        const cropNode = new CropNode(this.cropAtlas, Common.getRandomNumber(CropIdRange.Low, CropIdRange.High));
+        const finalCropId = cropId !== undefined ? cropId : Common.getRandomNumber(CropIdRange.Low, CropIdRange.High);
+        const cropNode = new CropNode(this.cropAtlas, finalCropId);
         if (cropNode.crop == null) {
-            return;
+            return false;
         }
 
         cropNode.setTilePosition(x, y);
@@ -162,6 +280,15 @@ export class Soil extends Component {
         // 使用修复后的getReleasePos函数设置精灵节点的位置
         const tilePos = this.soilLayer.getPositionAt(x, y);
         cropNode.setPosition(tilePos.x - this.OffsetX, tilePos.y - this.OffsetY);
+
+        // 发送种植事件
+        eventBus.emit(GameEvent.CROP_PLANTED, {
+            cropId: finalCropId,
+            cropName: cropNode.crop?.CropName || '',
+            position: { x, y },
+        });
+
+        return true;
     }
 
     // 初始化土地

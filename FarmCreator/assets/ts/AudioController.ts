@@ -2,6 +2,7 @@
 
 import { AudioClip, AudioSource, Component, _decorator, resources, error } from 'cc';
 import { common } from './Common';
+import { eventBus, GameEvent } from './EventBus';
 const { ccclass, property } = _decorator;
 
 
@@ -47,6 +48,74 @@ export class AudioController extends Component {
         // 加载音效：烟花
         resources.load('audio/fireworks', AudioClip, (err, audio) => { if (err) { console.log("load audio error"); error(err.message || err); return; } this.clipFireworks = audio; })
 
+        // 注册 EventBus 事件监听 - 游戏事件自动触发音效
+        this.registerEventBus();
+    }
+
+    onDestroy() {
+        this.unregisterEventBus();
+    }
+
+    /**
+     * 注册 EventBus 事件
+     */
+    private registerEventBus() {
+        eventBus.on(GameEvent.CROP_HARVESTED, this.onCropHarvested, this);
+        eventBus.on(GameEvent.CROP_PLANTED, this.onCropPlanted, this);
+        eventBus.on(GameEvent.ACHIEVEMENT_UNLOCKED, this.onAchievementUnlocked, this);
+        eventBus.on(GameEvent.TASK_COMPLETED, this.onTaskCompleted, this);
+        eventBus.on(GameEvent.GAME_PAUSED, this.onGamePaused, this);
+        eventBus.on(GameEvent.GAME_RESUMED, this.onGameResumed, this);
+        eventBus.on(GameEvent.UI_OPEN, this.onUIOpen, this);
+        eventBus.on(GameEvent.UI_CLOSE, this.onUIClose, this);
+    }
+
+    /**
+     * 取消 EventBus 事件
+     */
+    private unregisterEventBus() {
+        eventBus.off(GameEvent.CROP_HARVESTED, this.onCropHarvested, this);
+        eventBus.off(GameEvent.CROP_PLANTED, this.onCropPlanted, this);
+        eventBus.off(GameEvent.ACHIEVEMENT_UNLOCKED, this.onAchievementUnlocked, this);
+        eventBus.off(GameEvent.TASK_COMPLETED, this.onTaskCompleted, this);
+        eventBus.off(GameEvent.GAME_PAUSED, this.onGamePaused, this);
+        eventBus.off(GameEvent.GAME_RESUMED, this.onGameResumed, this);
+        eventBus.off(GameEvent.UI_OPEN, this.onUIOpen, this);
+        eventBus.off(GameEvent.UI_CLOSE, this.onUIClose, this);
+    }
+
+    // ==================== EventBus 事件回调 ====================
+
+    private onCropHarvested(data: any) {
+        this.playSoundGather();
+    }
+
+    private onCropPlanted(data: any) {
+        this.playSoundClick();
+    }
+
+    private onAchievementUnlocked(data: any) {
+        this.playSoundFireworks();
+    }
+
+    private onTaskCompleted(data: any) {
+        this.playSoundFireworks();
+    }
+
+    private onGamePaused(data: any) {
+        this.pauseBGM();
+    }
+
+    private onGameResumed(data: any) {
+        this.playBGM();
+    }
+
+    private onUIOpen(data: any) {
+        this.playSoundClick();
+    }
+
+    private onUIClose(data: any) {
+        this.playSoundClick();
     }
 
     // 播放音效, filename: 文件名，例如：click（相对于resources/audio的路径）
@@ -73,26 +142,26 @@ export class AudioController extends Component {
 
     // 音效：点击
     playSoundClick() {
-        this.backgroud.playOneShot(this.clipClick, 1);
+        if (this.clipClick) this.backgroud.playOneShot(this.clipClick, 1);
     }
 
     // 音效：扩建
     playSoundExtand() {
-        this.backgroud.playOneShot(this.clipExtand, 1);
+        if (this.clipExtand) this.backgroud.playOneShot(this.clipExtand, 1);
     }
 
     // 音效：铲除
     playSoundWipe() {
-        this.backgroud.playOneShot(this.clipWipe, 1);
+        if (this.clipWipe) this.backgroud.playOneShot(this.clipWipe, 1);
     }
 
     // 音效：收获
     playSoundGather() {
-        this.backgroud.playOneShot(this.clipGather, 1);
+        if (this.clipGather) this.backgroud.playOneShot(this.clipGather, 1);
     }
 
     // 音效：烟花
     playSoundFireworks() {
-        this.backgroud.playOneShot(this.clipFireworks, 1);
+        if (this.clipFireworks) this.backgroud.playOneShot(this.clipFireworks, 1);
     }
 }

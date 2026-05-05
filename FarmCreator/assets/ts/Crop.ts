@@ -1,5 +1,9 @@
 import { _decorator, Node, Button, Sprite, SpriteAtlas, JsonAsset, resources, SpriteFrame, UITransform, Vec2, Layers, error } from 'cc';
 import { Common, NaturalEnv, common } from './Common'
+import { CurrencySystem } from './CurrencySystem';
+import { WarehouseManager } from './WarehouseManager';
+import { WeatherSystem } from './WeatherSystem';
+import { eventBus, GameEvent } from './EventBus';
 
 const { ccclass, property } = _decorator;
 
@@ -72,8 +76,11 @@ export class CropData {
     // 最高生长温度
     public TempHigh: number = 0;
 
-    // 一次生命周期最大的成熟次数
-    public HarvestMaxTimes: number = 1;
+    // 种子价格
+    public SeedPrice: number = 0;
+
+    // 售卖价格
+    public SellPrice: number = 0;
 
     // 生命周期数组
     public Lifecycles: CropLifecycle[] = [];
@@ -96,9 +103,10 @@ export class CropData {
             if (CropData.AllCrops[i].CropId == CropId) {
                 var crop = CropData.AllCrops[i];
                 this.CropName = crop.CropName;
-                this.TempLow = crop.TempLow;
+        this.TempLow = crop.TempLow;
                 this.TempHigh = crop.TempHigh;
-                this.HarvestMaxTimes = crop.HarvestMaxTimes;
+                this.SeedPrice = crop.SeedPrice;
+                this.SellPrice = crop.SellPrice;
                 this.Lifecycles = crop.Lifecycles;
                 break;
             }
@@ -111,7 +119,8 @@ export class CropData {
 
         cropData.CropName = json.name;
         cropData.CropId = json.id;
-        cropData.HarvestMaxTimes = json.matureTimes;
+        cropData.SeedPrice = json.seedPrice || 10;
+        cropData.SellPrice = json.sellPrice || 20;
         cropData.TempLow = json.tempLow;
         cropData.TempHigh = json.tempHigh;
 
@@ -314,10 +323,18 @@ export class CropNode extends Node {
 
         //console.log(this.crop.CropName + " - " + this.crop.CropId + " 当前周期: ", this.CurrentLifecycleIndex + " / " + this.crop.Lifecycles.length);
         var timeNow = Date.now();
+
+        // 天气生长倍率
+        const weatherSystem = WeatherSystem.getInstance();
+        const weatherMultiplier = weatherSystem ? weatherSystem.growthMultiplier : 1.0;
+
         var minutes = Common.RealTimeToGameTime(this.crop.Lifecycles[this.CurrentLifecycleIndex].Days);
 
+        // 天气影响：生长时间除以倍率（倍率越高长得越快）
+        var adjustedMinutes = minutes / weatherMultiplier;
+
         // 转化为毫秒计算
-        if ((timeNow - this.CurrentLifecycleStartTime) > minutes * 60 * 1000) {
+        if ((timeNow - this.CurrentLifecycleStartTime) > adjustedMinutes * 60 * 1000) {
             // 进入下一个周期
             this.enterNextLifecycle(timeNow);
             this.updateSpriteFrame();
@@ -332,6 +349,11 @@ export class CropNode extends Node {
     // 成熟了
     onMature(): void {
         this.cropState = CropState.Mature;
+        eventBus.emit(GameEvent.CROP_MATURED, {
+            cropId: this.crop.CropId,
+            cropName: this.crop.CropName,
+            position: { x: this.TilePosX, y: this.TilePosY },
+        });
     }
 
     // 是否成熟了
@@ -345,17 +367,34 @@ export class CropNode extends Node {
             console.log(`作物: ${this.crop.CropName}(${this.crop.CropId})  收获了xxx`);
             common.audioController.playSoundGather();   // 播放收获音效
 
-            this.HarvestTimes += 1;
-            //common.audioController.playMatureEffect();   // 播放成熟音效
+            // 存入仓库
+            const warehouse = WarehouseManager.getInstance();
+            if (warehouse) {
+                warehouse.storeCrop(this.crop.CropId, this.crop.CropName, this.crop.SellPrice, 1);
+                console.log(`[Crop] 收获作物存入仓库: ${this.crop.CropName}, 售卖价: ${this.crop.SellPrice}`);
+            }
 
-            if (this.crop.HarvestMaxTimes > 0 && this.HarvestTimes >= this.crop.HarvestMaxTimes) {
+            this.HarvestTimes += 1;
+
+            // 发送收获事件
+            eventBus.emit(GameEvent.CROP_HARVESTED, {
+                cropId: this.crop.CropId,
+                cropName: this.crop.CropName,
+                sellPrice: this.crop.SellPrice,
+                harvestTimes: this.HarvestTimes,
+                position: { x: this.TilePosX, y: this.TilePosY },
+            });
+
+            // 检查是否需要死亡（通过检查matureTimes）
+            const cropData = CropData.AllCrops.find(c => c.CropId === this.crop.CropId);
+            const maxHarvestTimes = cropData ? (cropData as any).matureTimes || 1 : 1;
+
+            if (maxHarvestTimes > 0 && this.HarvestTimes >= maxHarvestTimes) {
                 this.Die();
             } else {
                 // 重新进入生长期
                 this.enterNewLifecycle(Date.now());
             }
-        } else {
-            //console.log(`作物: " + ${this.crop.CropName}(${this.crop.CropId})  未成熟`);
         }
     }
 
@@ -369,6 +408,12 @@ export class CropNode extends Node {
         console.log(`作物: ${this.crop.CropName}(${this.crop.CropId}) 寿命结束，作物死亡`);
         this.CurrentLifecycleIndex = CropState.Dead;
         this.cropState = CropState.Dead;
+        eventBus.emit(GameEvent.CROP_DIED, {
+            cropId: this.crop.CropId,
+            cropName: this.crop.CropName,
+            harvestTimes: this.HarvestTimes,
+            position: { x: this.TilePosX, y: this.TilePosY },
+        });
     }
 
     // 进入下一个周期

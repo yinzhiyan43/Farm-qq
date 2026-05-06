@@ -7,6 +7,7 @@ import { ShopManager } from './ShopManager';
 import { ExpSystem } from './ExpSystem';
 import { TaskManager } from './TaskManager';
 import { AchievementManager } from './AchievementManager';
+import { MarketOrderManager } from './MarketOrderManager';
 import { TimeSystem } from './TimeSystem';
 import { WeatherSystem } from './WeatherSystem';
 import { FriendsSystem } from './FriendsSystem';
@@ -30,7 +31,7 @@ const { ccclass, property } = _decorator;
  * 1. 资源加载（CropData等）
  * 2. 场景切换到 MainScene
  * 3. 核心模拟系统创建（TimeSystem → WeatherSystem → FriendsSystem → TutorialManager）
- * 4. 经济成长系统创建（Currency/Warehouse/Shop/Exp/Task/Achievement）
+ * 4. 经济成长系统创建（Currency/Warehouse/Shop/Exp/Task/Achievement/MarketOrder）
  * 5. PerformanceSystem（性能优化，在SaveManager前创建以便提供对象池）
  * 6. AnimationSystem（动画系统，在UIManager前创建以便提供动画接口）
  * 7. SaveManager（恢复存档）
@@ -137,6 +138,7 @@ export class GameManager extends Component {
         this.ensureSystem<ExpSystem>('ExpSystem', canvas, ExpSystem);
         this.ensureSystem<TaskManager>('TaskManager', canvas, TaskManager);
         this.ensureSystem<AchievementManager>('AchievementManager', canvas, AchievementManager);
+        this.ensureSystem<MarketOrderManager>('MarketOrderManager', canvas, MarketOrderManager);
     }
 
     /** 批次2：支撑系统 */

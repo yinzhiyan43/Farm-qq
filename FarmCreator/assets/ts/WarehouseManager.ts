@@ -187,6 +187,28 @@ export class WarehouseManager extends Component {
         console.log(`[WarehouseManager] 出售作物: ${item.cropName} x${count}, 获得金币: ${earnings}`);
         return earnings;
     }
+
+    /**
+     * 移除指定作物但不结算普通售价，用于订单交付、任务消耗等玩法。
+     */
+    public removeCrop(cropId: number, count: number = 1, reason: string = 'consume'): boolean {
+        const item = this._items.get(cropId);
+        if (!item || count <= 0 || item.count < count) {
+            return false;
+        }
+
+        item.count -= count;
+        const cropName = item.cropName;
+        if (item.count === 0) {
+            this._items.delete(cropId);
+        }
+
+        this.saveWarehouse();
+        this.emitWarehouseChanged();
+        eventBus.emit(GameEvent.WAREHOUSE_REMOVED, { cropId, cropName, count, reason });
+        console.log(`[WarehouseManager] 移除作物: ${cropName} x${count}, 原因: ${reason}`);
+        return true;
+    }
     
     /**
      * 全部出售

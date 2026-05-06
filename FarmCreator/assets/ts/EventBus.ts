@@ -29,6 +29,10 @@ export enum GameEvent {
     // 商店事件
     SHOP_ITEM_BOUGHT = 'shop_item_bought',
     SHOP_UNLOCKED = 'shop_unlocked',
+
+    // 订单事件
+    MARKET_ORDER_COMPLETED = 'market_order_completed',
+    MARKET_ORDERS_REFRESHED = 'market_orders_refreshed',
     
     // 任务事件
     TASK_ACCEPTED = 'task_accepted',

@@ -2,6 +2,7 @@ import { _decorator, Component, game, EventTarget } from 'cc';
 import { CurrencySystem } from './CurrencySystem';
 import { ExpSystem } from './ExpSystem';
 import { WarehouseManager } from './WarehouseManager';
+import { ShopManager } from './ShopManager';
 import { TaskManager } from './TaskManager';
 import { AchievementManager } from './AchievementManager';
 import { TimeSystem } from './TimeSystem';
@@ -410,6 +411,11 @@ export class SaveManager extends Component {
                 totalValue: warehouse.getTotalValue(),
             };
         }
+
+        const shopManager = ShopManager.getInstance();
+        if (shopManager) {
+            data.shop = shopManager.getSaveData();
+        }
         
         // 收集任务系统数据
         const taskManager = TaskManager.getInstance();
@@ -494,6 +500,13 @@ export class SaveManager extends Component {
             const warehouse = WarehouseManager.getInstance();
             if (warehouse) {
                 warehouse.setItems(data.warehouse.items);
+            }
+        }
+
+        if (data.shop) {
+            const shopManager = ShopManager.getInstance();
+            if (shopManager) {
+                shopManager.restoreFromSave(data.shop);
             }
         }
         

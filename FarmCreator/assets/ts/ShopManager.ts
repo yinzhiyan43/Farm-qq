@@ -45,6 +45,17 @@ export class ShopManager extends Component {
     
     /** 是否已初始化 */
     private _initialized: boolean = false;
+
+    /** 已购买但尚未播种的种子库存 */
+    private _seedInventory: Map<number, number> = new Map();
+
+    /** 下一块新土地优先播种的作物 */
+    private _selectedSeedCropId: number = 101;
+
+    private _pendingSaveData: any = null;
+
+    private readonly SEED_INVENTORY_KEY = 'farm_seed_inventory';
+    private readonly SELECTED_SEED_KEY = 'farm_selected_seed';
     
     public static getInstance(): ShopManager {
         // 如果实例不存在，尝试自动创建
@@ -87,6 +98,7 @@ export class ShopManager extends Component {
     onLoad() {
         if (ShopManager._instance === null) {
             ShopManager._instance = this;
+            this.loadSeedInventory();
             this.loadShopData();
             this._registerEvents();
         } else if (ShopManager._instance !== this) {
@@ -112,7 +124,7 @@ export class ShopManager extends Component {
 
     /** 玩家升级时自动解锁对应等级的商品 */
     private _onLevelUp(data: any): void {
-        const level = data?.level || 0;
+        const level = data?.level || data?.newLevel || 0;
         if (level > 0) {
             this.unlockByLevel(level);
         }
@@ -153,6 +165,11 @@ export class ShopManager extends Component {
                 }
                 
                 this._initialized = true;
+                if (this._pendingSaveData) {
+                    const pending = this._pendingSaveData;
+                    this._pendingSaveData = null;
+                    this.restoreFromSave(pending);
+                }
                 console.log(`[ShopManager] 商店数据加载完成: ${this._items.size} 种商品`);
             } catch (error) {
                 console.error('[ShopManager] 解析商店数据失败:', error);
@@ -255,6 +272,8 @@ export class ShopManager extends Component {
         // 执行购买
         if (currencySystem.spendGold(totalPrice)) {
             const remainingGold = currencySystem.gold;
+            this.addSeed(cropId, quantity);
+            this.selectSeed(cropId);
             console.log(`[ShopManager] 购买成功: ${item.cropName} 种子 x${quantity}, 花费 ${totalPrice} 金币`);
             
             // 触发购买成功事件
@@ -262,14 +281,16 @@ export class ShopManager extends Component {
                 cropId: cropId,
                 cropName: item.cropName,
                 quantity: quantity,
-                totalPrice: totalPrice
+                totalPrice: totalPrice,
+                seedCount: this.getSeedCount(cropId),
             });
             // 通过EventBus全局发布
             eventBus.emit(GameEvent.SHOP_ITEM_BOUGHT, {
                 cropId: cropId,
                 cropName: item.cropName,
                 quantity: quantity,
-                totalPrice: totalPrice
+                totalPrice: totalPrice,
+                seedCount: this.getSeedCount(cropId),
             });
             
             return { 
@@ -335,6 +356,111 @@ export class ShopManager extends Component {
         
         if (unlockedCount > 0) {
             this.node.emit('items-unlocked-by-level', level);
+            eventBus.emit(GameEvent.SHOP_UNLOCKED, { level, count: unlockedCount });
+        }
+    }
+
+    public getSeedCount(cropId: number): number {
+        return this._seedInventory.get(cropId) || 0;
+    }
+
+    public getSelectedSeedCropId(): number {
+        return this._selectedSeedCropId;
+    }
+
+    public selectSeed(cropId: number): boolean {
+        if (!this._items.has(cropId) && this._initialized) {
+            return false;
+        }
+        this._selectedSeedCropId = cropId;
+        localStorage.setItem(this.SELECTED_SEED_KEY, cropId.toString());
+        return true;
+    }
+
+    public consumeSeed(cropId: number, quantity: number = 1): boolean {
+        const current = this.getSeedCount(cropId);
+        if (quantity <= 0 || current < quantity) return false;
+
+        const next = current - quantity;
+        if (next <= 0) {
+            this._seedInventory.delete(cropId);
+        } else {
+            this._seedInventory.set(cropId, next);
+        }
+        this.saveSeedInventory();
+        return true;
+    }
+
+    public getSaveData(): any {
+        return {
+            seedInventory: Array.from(this._seedInventory.entries()),
+            selectedSeedCropId: this._selectedSeedCropId,
+            unlockedCropIds: this.getUnlockedItems().map(item => item.cropId),
+        };
+    }
+
+    public restoreFromSave(data: any): void {
+        if (!data) return;
+        if (!this._initialized) {
+            this._pendingSaveData = data;
+        }
+
+        this._seedInventory.clear();
+        if (Array.isArray(data.seedInventory)) {
+            for (const [cropId, count] of data.seedInventory) {
+                if (count > 0) {
+                    this._seedInventory.set(Number(cropId), Number(count));
+                }
+            }
+        }
+
+        if (data.selectedSeedCropId > 0) {
+            this._selectedSeedCropId = data.selectedSeedCropId;
+        }
+
+        if (Array.isArray(data.unlockedCropIds)) {
+            for (const cropId of data.unlockedCropIds) {
+                const item = this._items.get(Number(cropId));
+                if (item) item.unlocked = true;
+            }
+        }
+
+        this.saveSeedInventory();
+        localStorage.setItem(this.SELECTED_SEED_KEY, this._selectedSeedCropId.toString());
+        console.log(`[ShopManager] 从存档恢复种子库存: ${this._seedInventory.size} 种`);
+    }
+
+    private addSeed(cropId: number, quantity: number): void {
+        const current = this.getSeedCount(cropId);
+        this._seedInventory.set(cropId, current + quantity);
+        this.saveSeedInventory();
+    }
+
+    private saveSeedInventory(): void {
+        const data = Array.from(this._seedInventory.entries());
+        localStorage.setItem(this.SEED_INVENTORY_KEY, JSON.stringify(data));
+    }
+
+    private loadSeedInventory(): void {
+        const dataStr = localStorage.getItem(this.SEED_INVENTORY_KEY);
+        if (dataStr) {
+            try {
+                const data = JSON.parse(dataStr);
+                if (Array.isArray(data)) {
+                    for (const [cropId, count] of data) {
+                        if (count > 0) {
+                            this._seedInventory.set(Number(cropId), Number(count));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[ShopManager] 加载种子库存失败:', error);
+            }
+        }
+
+        const selected = parseInt(localStorage.getItem(this.SELECTED_SEED_KEY) || '', 10);
+        if (selected > 0) {
+            this._selectedSeedCropId = selected;
         }
     }
     

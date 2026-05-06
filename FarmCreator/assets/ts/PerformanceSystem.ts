@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, UITransform, UIOpacity, Label, Color, Vec3, Size, tween } from 'cc';
+import { _decorator, Component, Node, UITransform, UIOpacity, Label, Color, Vec3, Size, tween, Tween } from 'cc';
 import { eventBus, GameEvent } from './EventBus';
 
 const { ccclass, property } = _decorator;
@@ -291,7 +291,9 @@ export class PerformanceSystem extends Component {
             return;
         }
         // 先停止该节点上的所有tween
-        tween(node).stop();
+        Tween.stopAllByTarget(node);
+        const opacity = node.getComponent(UIOpacity);
+        if (opacity) Tween.stopAllByTarget(opacity);
         bucket.put(node);
     }
 

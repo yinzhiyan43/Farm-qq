@@ -287,12 +287,14 @@ export class ExpSystem extends Component {
         console.log(`[ExpSystem] 恭喜升级！当前等级: ${this._playerData.level}`);
         
         this._eventTarget.emit('levelUp', {
+            level: this._playerData.level,
             newLevel: this._playerData.level,
             unlockCrops: currentConfig?.unlockCrops || [],
             unlockFeatures: currentConfig?.unlockFeatures || [],
             rewardGold: currentConfig?.rewardGold || 0,
         });
         eventBus.emit(GameEvent.LEVEL_UP, {
+            level: this._playerData.level,
             newLevel: this._playerData.level,
             unlockCrops: currentConfig?.unlockCrops || [],
             unlockFeatures: currentConfig?.unlockFeatures || [],

@@ -2,6 +2,7 @@ import { _decorator, Component, TiledMap, TiledLayer, SpriteAtlas, Vec2, Node, V
 import { CropNode, CropIdRange, CropData } from './Crop';
 import { Common, common } from './Common';
 import { CurrencySystem } from './CurrencySystem';
+import { ShopManager } from './ShopManager';
 import { eventBus, GameEvent } from './EventBus';
 
 const { ccclass, property } = _decorator;
@@ -233,9 +234,9 @@ export class Soil extends Component {
     }
 
     // 在行列处添加植物
-    addCrop(x: number, y: number, cropId?: number): boolean {
+    addCrop(x: number, y: number, cropId?: number, chargeSeed: boolean = true): boolean {
         // 如果指定了作物ID，检查是否有足够金币购买种子
-        if (cropId !== undefined) {
+        if (cropId !== undefined && chargeSeed) {
             const currencySystem = CurrencySystem.getInstance();
             if (!currencySystem) {
                 console.warn('[Soil] 货币系统未初始化');
@@ -285,7 +286,8 @@ export class Soil extends Component {
         eventBus.emit(GameEvent.CROP_PLANTED, {
             cropId: finalCropId,
             cropName: cropNode.crop?.CropName || '',
-            position: { x, y },
+            position: { x: cropNode.position.x, y: cropNode.position.y },
+            tile: { x, y },
         });
 
         return true;
@@ -347,7 +349,17 @@ export class Soil extends Component {
             common.audioController.playSoundExtand();  // 播放扩建音效
 
             this.extendLand(this.ExtendBrandTileX, this.ExtendBrandTileY);
-            this.addCrop(this.ExtendBrandTileX, this.ExtendBrandTileY);
+
+            const shopManager = ShopManager.getInstance();
+            const selectedSeedId = shopManager?.getSelectedSeedCropId();
+            const hasSeed = selectedSeedId && shopManager.getSeedCount(selectedSeedId) > 0;
+            if (hasSeed) {
+                shopManager.consumeSeed(selectedSeedId, 1);
+                this.addCrop(this.ExtendBrandTileX, this.ExtendBrandTileY, selectedSeedId, false);
+                console.log(`[Soil] 使用已购买种子播种: ${selectedSeedId}`);
+            } else {
+                this.addCrop(this.ExtendBrandTileX, this.ExtendBrandTileY);
+            }
 
             this.ExtendBrandTileX++;
             if (this.ExtendBrandTileX >= this.WidthCount) {

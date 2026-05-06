@@ -135,6 +135,9 @@ export class CropData {
     // 从json数据反序列化所有作物数据
     // 读取json资源：https://docs.cocos.com/creator/manual/zh/asset/json.html
     public static async deserializeAll(): Promise<void> {
+        if (CropData.AllCrops.length > 0) {
+            return;
+        }
         //console.log("load crop data...");
 
         const asset = await Common.loadResourceAsync<JsonAsset>(CropDataResourceName, JsonAsset);
@@ -349,11 +352,12 @@ export class CropNode extends Node {
     // 成熟了
     onMature(): void {
         this.cropState = CropState.Mature;
-        eventBus.emit(GameEvent.CROP_MATURED, {
-            cropId: this.crop.CropId,
-            cropName: this.crop.CropName,
-            position: { x: this.TilePosX, y: this.TilePosY },
-        });
+            eventBus.emit(GameEvent.CROP_MATURED, {
+                cropId: this.crop.CropId,
+                cropName: this.crop.CropName,
+                position: { x: this.position.x, y: this.position.y },
+                tile: { x: this.TilePosX, y: this.TilePosY },
+            });
     }
 
     // 是否成熟了
@@ -382,7 +386,8 @@ export class CropNode extends Node {
                 cropName: this.crop.CropName,
                 sellPrice: this.crop.SellPrice,
                 harvestTimes: this.HarvestTimes,
-                position: { x: this.TilePosX, y: this.TilePosY },
+                position: { x: this.position.x, y: this.position.y },
+                tile: { x: this.TilePosX, y: this.TilePosY },
             });
 
             // 检查是否需要死亡（通过检查matureTimes）
@@ -412,7 +417,8 @@ export class CropNode extends Node {
             cropId: this.crop.CropId,
             cropName: this.crop.CropName,
             harvestTimes: this.HarvestTimes,
-            position: { x: this.TilePosX, y: this.TilePosY },
+            position: { x: this.position.x, y: this.position.y },
+            tile: { x: this.TilePosX, y: this.TilePosY },
         });
     }
 

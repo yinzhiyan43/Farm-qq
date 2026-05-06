@@ -1,6 +1,12 @@
 import { _decorator, Component, director, find, Node, Label, Color, UITransform, Graphics, tween, UIOpacity, Layers, Widget, resources, SpriteAtlas, Sprite, SpriteFrame, Animation, AnimationClip, Vec3 } from 'cc';
 import { CropData } from './Crop';
 import { UIManager } from './UIManager';
+import { CurrencySystem } from './CurrencySystem';
+import { WarehouseManager } from './WarehouseManager';
+import { ShopManager } from './ShopManager';
+import { ExpSystem } from './ExpSystem';
+import { TaskManager } from './TaskManager';
+import { AchievementManager } from './AchievementManager';
 import { TimeSystem } from './TimeSystem';
 import { WeatherSystem } from './WeatherSystem';
 import { FriendsSystem } from './FriendsSystem';
@@ -23,11 +29,12 @@ const { ccclass, property } = _decorator;
  * 初始化顺序：
  * 1. 资源加载（CropData等）
  * 2. 场景切换到 MainScene
- * 3. 核心管理器创建（TimeSystem → WeatherSystem → FriendsSystem → TutorialManager）
- * 4. PerformanceSystem（性能优化，在SaveManager前创建以便提供对象池）
- * 5. AnimationSystem（动画系统，在UIManager前创建以便提供动画接口）
- * 6. SaveManager（恢复存档）
- * 7. UIManager（UI层最后初始化，依赖所有系统就绪）
+ * 3. 核心模拟系统创建（TimeSystem → WeatherSystem → FriendsSystem → TutorialManager）
+ * 4. 经济成长系统创建（Currency/Warehouse/Shop/Exp/Task/Achievement）
+ * 5. PerformanceSystem（性能优化，在SaveManager前创建以便提供对象池）
+ * 6. AnimationSystem（动画系统，在UIManager前创建以便提供动画接口）
+ * 7. SaveManager（恢复存档）
+ * 8. UIManager（UI层最后初始化，依赖所有系统就绪）
  */
 @ccclass('GameManager')
 export class GameManager extends Component {
@@ -89,8 +96,9 @@ export class GameManager extends Component {
     private _initSystemsBatch(batchIndex: number) {
         const batches = [
             () => this._initCoreSystems(),      // 批次0：核心系统 (Time, Weather, Friends, Tutorial)
-            () => this._initSupportSystems(),    // 批次1：支撑系统 (Performance, Animation)
-            () => this._initLateSystems(),       // 批次2：后端系统 (Save, UI)
+            () => this._initEconomySystems(),   // 批次1：经济/成长系统
+            () => this._initSupportSystems(),   // 批次2：支撑系统 (Performance, Animation)
+            () => this._initLateSystems(),      // 批次3：后端系统 (Save, UI)
         ];
 
         if (batchIndex < batches.length) {
@@ -119,7 +127,19 @@ export class GameManager extends Component {
         this.ensureSystem<TutorialManager>('TutorialManager', canvas, TutorialManager);
     }
 
-    /** 批次1：支撑系统 */
+    /** 批次1：经济/成长系统 */
+    private _initEconomySystems() {
+        const canvas = find('Canvas');
+        if (!canvas) return;
+        this.ensureSystem<CurrencySystem>('CurrencySystem', canvas, CurrencySystem);
+        this.ensureSystem<WarehouseManager>('WarehouseManager', canvas, WarehouseManager);
+        this.ensureSystem<ShopManager>('ShopManager', canvas, ShopManager);
+        this.ensureSystem<ExpSystem>('ExpSystem', canvas, ExpSystem);
+        this.ensureSystem<TaskManager>('TaskManager', canvas, TaskManager);
+        this.ensureSystem<AchievementManager>('AchievementManager', canvas, AchievementManager);
+    }
+
+    /** 批次2：支撑系统 */
     private _initSupportSystems() {
         const canvas = find('Canvas');
         if (!canvas) return;
@@ -127,7 +147,7 @@ export class GameManager extends Component {
         this.ensureSystem<AnimationSystem>('AnimationSystem', canvas, AnimationSystem);
     }
 
-    /** 批次2：后端系统 */
+    /** 批次3：后端系统 */
     private _initLateSystems() {
         const canvas = find('Canvas');
         if (!canvas) return;
@@ -220,7 +240,7 @@ export class GameManager extends Component {
         titleLabel.string = '加载中...';
         titleLabel.fontSize = 36;
         titleLabel.color = new Color(200, 200, 200, 255);
-        titleLabel.overflow = Overflow.CLAMP;
+        titleLabel.overflow = Label.Overflow.CLAMP;
         titleNode.parent = center;
 
         // 进度条背景
@@ -260,7 +280,7 @@ export class GameManager extends Component {
         textLabel.string = '0%';
         textLabel.fontSize = 22;
         textLabel.color = new Color(160, 160, 160, 255);
-        textLabel.overflow = Overflow.CLAMP;
+        textLabel.overflow = Label.Overflow.CLAMP;
         textNode.parent = center;
         this._loadingText = textNode;
 

@@ -22,6 +22,7 @@ export class AnimationSystem extends Component {
 
     // 缓存活跃的Tween，便于统一管理
     private activeTweens: Map<string, Tween<any>> = new Map();
+    private pooledAnimationTokens: WeakMap<Node, number> = new WeakMap();
 
     // 动画参数
     private readonly SWING_DURATION = 0.6;
@@ -119,6 +120,7 @@ export class AnimationSystem extends Component {
         const perf = PerformanceSystem.getInstance();
         const indicator = perf ? perf.getFromPool('MatureIndicator') : null;
         if (!indicator) return;
+        const token = this.nextPooledToken(indicator);
 
         const startY = worldY + 40;
         indicator.setPosition(worldX, startY, 0);
@@ -145,8 +147,10 @@ export class AnimationSystem extends Component {
 
         // 5秒后归还池
         this.scheduleOnce(() => {
-            if (indicator.isValid) {
-                tween(indicator).stop();
+            if (indicator.isValid && this.pooledAnimationTokens.get(indicator) === token) {
+                Tween.stopAllByTarget(indicator);
+                const opacityComp = indicator.getComponent(UIOpacity);
+                if (opacityComp) Tween.stopAllByTarget(opacityComp);
                 if (perf) perf.returnToPool('MatureIndicator', indicator);
             }
         }, 5);
@@ -169,6 +173,7 @@ export class AnimationSystem extends Component {
         const perf = PerformanceSystem.getInstance();
         const coinNode = perf ? perf.getFromPool('CoinFly') : null;
         if (!coinNode) return;
+        const token = this.nextPooledToken(coinNode);
 
         // 设置Label文字
         const label = coinNode.getComponent(Label);
@@ -186,10 +191,13 @@ export class AnimationSystem extends Component {
                 position: this.goldHudPosition.clone(),
             }, { easing: 'sineIn' })
             .call(() => {
+                if (this.pooledAnimationTokens.get(coinNode) !== token) return;
                 tween(opacity!)
                     .to(0.2, { opacity: 0 })
                     .call(() => {
-                        if (perf) perf.returnToPool('CoinFly', coinNode);
+                        if (this.pooledAnimationTokens.get(coinNode) === token && perf) {
+                            perf.returnToPool('CoinFly', coinNode);
+                        }
                     })
                     .start();
             })
@@ -197,7 +205,7 @@ export class AnimationSystem extends Component {
 
         // 安全清理（防tween中断）
         this.scheduleOnce(() => {
-            if (coinNode.isValid && coinNode.parent) {
+            if (coinNode.isValid && coinNode.parent && this.pooledAnimationTokens.get(coinNode) === token) {
                 if (perf) perf.returnToPool('CoinFly', coinNode);
             }
         }, this.COIN_FLY_DURATION + 1);
@@ -366,6 +374,12 @@ export class AnimationSystem extends Component {
      */
     public setGoldHudPosition(pos: Vec3) {
         this.goldHudPosition.set(pos);
+    }
+
+    private nextPooledToken(node: Node): number {
+        const token = (this.pooledAnimationTokens.get(node) || 0) + 1;
+        this.pooledAnimationTokens.set(node, token);
+        return token;
     }
 
     /**

@@ -396,7 +396,8 @@ const nameColor = isLocked ? new Color(100, 100, 100, 255) : new Color(220, 210,
 const nameLabel = isLocked ? '???' : (this.CROP_NAMES[cropId] || item.cropName || `作物${cropId}`);
 const priceColor = canAfford ? new Color(255, 200, 50, 255) : new Color(255, 70, 70, 255);
 const priceLabel = isLocked ? `Lv.${item.unlockLevel}` : `💰${item.seedPrice}`;
-const infoText = isLocked ? `???  ${priceLabel}` : `${nameLabel}  ${priceLabel}`;
+const seedCount = isLocked ? 0 : (ShopManager.getInstance()?.getSeedCount(item.cropId) || 0);
+const infoText = isLocked ? `???  ${priceLabel}` : `${nameLabel}  ${priceLabel}${seedCount > 0 ? `  x${seedCount}` : ''}`;
 const info = this.makeLabel('Info', infoText, 13, nameColor);
 info.setPosition(0, -33, 3);
 info.parent = cell;
@@ -759,7 +760,7 @@ return;
 }
 const result = shopManager.buySeed(item.cropId, this.detailQuantity);
 if (result && result.success) {
-this.showInfo(`成功购买 ${this.detailQuantity} 个${item.cropName || '物品'}！`);
+this.showInfo(`已购买 ${this.detailQuantity} 个${item.cropName || '物品'}，下一块土地将优先播种它`);
 this.closeDetailPopup();
 this.scheduleOnce(() => this.refreshShopContent(), 0.2);
 this.updateGoldDisplay();

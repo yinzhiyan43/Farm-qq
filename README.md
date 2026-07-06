@@ -1,6 +1,6 @@
 # Farm🌱
 
-`cocos`制作的农场游戏`demo`源码 一个`cocos2dx`C++版本一个`cocos creator`版本，Cocos Creator编辑器的使用可以记录在这里：[Cocos Creator使用汇总备查](https://zhupite.com/program/cocos-creator-summary.html)，不会用的可以参考。
+`cocos`制作的农场游戏`demo`源码，当前保留`cocos creator`版本。Cocos Creator编辑器的使用可以记录在这里：[Cocos Creator使用汇总备查](https://zhupite.com/program/cocos-creator-summary.html)，不会用的可以参考。
 
 我不是搞这行的，所以出了demo就不打算搞下去了，发出来给有兴趣的人参考吧。写了一些总结，权当参考：[cocos编写农场偷菜小游戏的总结](https://blog.csdn.net/asmcvc/article/details/105641708)
 
@@ -61,15 +61,9 @@ Cocos Creator的优势在UI设计上，但是痛苦在代码编写上。
 
 后来经过逐个低版本转换升级，目前可以使用Cocos Creator2.4.5打开。
 
-## C++版本
+## C++历史版本
 
-参考了[SDL农场游戏开发](https://github.com/sky94520/Farm/tree/Farm-09)，因为作者是使用的自己编写的SDL_Engine游戏引擎，不方便学习，更重要也不能直接编译运行，所以迁移到cocos2dx。
-因为他的工程代码是C++的，所以就使用了cocos2dxC++版本创建的项目，使用的是4.0版本的cocos2dx，需要自行下载编译，然后直接拿cpp-empty-test工程修改的，好在代码风格差不多，所以迁移还算顺利。
-
-C++编写的爽在代码编写，因为新版本的VisualStudio写代码很溜，痛苦在UI设计上。
-
-效果图：
-![](./screenshot/1.jpg)
+早期仓库曾包含一个`cocos2dx` C++版本，参考了[SDL农场游戏开发](https://github.com/sky94520/Farm/tree/Farm-09)，并基于 cocos2dx 4.0 的 cpp-empty-test 工程迁移实现。当前维护重心已经转为 Cocos Creator 版本，C++工程目录已移除；如需查看历史实现，可从 Git 历史中恢复。
 
 # 工具
 
